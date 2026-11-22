@@ -1,3 +1,4 @@
+
 """
 URL configuration for Shared Parking System.
 Created by M1. Each team member registers their app's API routes here.
@@ -24,4 +25,5 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/health/", health_check, name="health_check"),
     path("api/auth/", include("accounts.urls")),
+    path("api/", include("spaces.urls")),
 ]
