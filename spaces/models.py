@@ -125,6 +125,10 @@ class Space(models.Model):
             ),
         ]
 
+    @property
+    def owner(self):
+        return self.parking_property.owner
+
     def soft_delete(self):
         self.is_active = False
         self.deleted_at = timezone.now()
