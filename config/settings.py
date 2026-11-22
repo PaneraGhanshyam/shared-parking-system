@@ -95,7 +95,11 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Custom User Model (Must be set before initial migration)
+AUTH_USER_MODEL = 'accounts.User'
 
 # Django REST Framework Settings
 REST_FRAMEWORK = {
