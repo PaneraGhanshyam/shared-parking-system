@@ -94,7 +94,7 @@ class AuthAPITests(TestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("username", response.data.get("errors", response.data))
+        self.assertIn("username", response.data.get("errors", {}))
 
     def test_register_duplicate_email(self):
         self.client.post(
@@ -108,7 +108,7 @@ class AuthAPITests(TestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("email", response.data.get("errors", response.data))
+        self.assertIn("email", response.data.get("errors", {}))
 
     def test_register_invalid_phone_number(self):
         data = {
@@ -119,7 +119,7 @@ class AuthAPITests(TestCase):
         }
         response = self.client.post(self.register_url, data, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("phone_number", response.data.get("errors", response.data))
+        self.assertIn("phone_number", response.data.get("errors", {}))
 
     def test_login_success(self):
         User.objects.create_user(
@@ -143,13 +143,49 @@ class AuthAPITests(TestCase):
         data = {"username": "loginuser", "password": "wrongpassword"}
         response = self.client.post(self.login_url, data, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data.get("detail"), "Invalid username or password.")
+        self.assertIn("errors", response.data)
+        self.assertIn("non_field_errors", response.data["errors"])
+        self.assertEqual(
+            response.data["errors"]["non_field_errors"],
+            ["Invalid username or password."],
+        )
 
     def test_login_nonexistent_user(self):
         data = {"username": "nobody", "password": "somepassword"}
         response = self.client.post(self.login_url, data, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data.get("detail"), "Invalid username or password.")
+        self.assertIn("errors", response.data)
+        self.assertIn("non_field_errors", response.data["errors"])
+        self.assertEqual(
+            response.data["errors"]["non_field_errors"],
+            ["Invalid username or password."],
+        )
+
+    def test_login_missing_credentials(self):
+        response = self.client.post(self.login_url, {}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("errors", response.data)
+        self.assertIn("username", response.data["errors"])
+        self.assertIn("password", response.data["errors"])
+
+    def test_login_inactive_user(self):
+        user = User.objects.create_user(
+            username="inactiveuser",
+            email="inactive@example.com",
+            password="secretpassword",
+        )
+        user.is_active = False
+        user.save(update_fields=["is_active"])
+
+        data = {"username": "inactiveuser", "password": "secretpassword"}
+        response = self.client.post(self.login_url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("errors", response.data)
+        self.assertIn("non_field_errors", response.data["errors"])
+        self.assertEqual(
+            response.data["errors"]["non_field_errors"],
+            ["Invalid username or password."],
+        )
 
     def test_current_user_authenticated(self):
         user = User.objects.create_user(
@@ -200,7 +236,7 @@ class AuthAPITests(TestCase):
         me_response = self.client.get(self.me_url)
         self.assertEqual(me_response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-        # 4. Login attempt with deleted user returns 400
+        # 4. Login attempt with deleted user returns 400 with normalized errors format
         self.client.credentials()  # clear credentials
         login_response = self.client.post(
             self.login_url,
@@ -208,4 +244,9 @@ class AuthAPITests(TestCase):
             format="json",
         )
         self.assertEqual(login_response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(login_response.data.get("detail"), "Invalid username or password.")
+        self.assertIn("errors", login_response.data)
+        self.assertIn("non_field_errors", login_response.data["errors"])
+        self.assertEqual(
+            login_response.data["errors"]["non_field_errors"],
+            ["Invalid username or password."],
+        )

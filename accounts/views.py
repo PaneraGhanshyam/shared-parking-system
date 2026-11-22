@@ -30,22 +30,8 @@ class LoginView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
-        username = request.data.get("username")
-        password = request.data.get("password")
-
-        if not username or not password:
-            return Response(
-                {"detail": "Invalid username or password."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         serializer = LoginSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(
-                {"detail": "Invalid username or password."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
+        serializer.is_valid(raise_exception=True)
         user = serializer.validated_data["user"]
         token, _ = Token.objects.get_or_create(user=user)
         return Response(
