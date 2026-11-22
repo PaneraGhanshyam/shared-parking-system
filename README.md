@@ -32,7 +32,7 @@ The platform provides a peer-to-peer parking spot reservation service where ever
 
 | ID | Feature | Branch | Status | PR Link |
 |:---|:---|:---|:---|:---|
-| M1 | Project foundation | `chore/project-setup` | In Progress | — |
+| M1 | Project foundation | `chore/project-setup` | In Review | [PR Link](https://github.com/PaneraGhanshyam/shared-parking-system/pulls) |
 | M2 | User authentication | `feature/user-auth` | In Progress | — |
 | M3 | Property & space registration | `feature/space-registration` | In Progress | — |
 | M4 | Reservation model | `feature/reservation-model` | Waiting | — |
