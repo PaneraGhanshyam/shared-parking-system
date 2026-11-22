@@ -115,7 +115,7 @@ class SpaceSerializer(serializers.ModelSerializer):
                 "Ensure this value is between 50 and 2000."
             )
         return value
-   
+
     def validate(self, attrs):
         parking_property = attrs.get(
             "parking_property",

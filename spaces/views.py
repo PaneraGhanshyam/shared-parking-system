@@ -22,7 +22,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         instance.soft_delete()
-        
+
 class SpaceViewSet(viewsets.ModelViewSet):
     serializer_class = SpaceSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
