@@ -62,9 +62,18 @@ class CurrentUserView(APIView):
     """
     GET /api/auth/me/
     Returns authenticated user's profile details.
+
+    DELETE /api/auth/me/
+    Soft-deletes the user account and deletes auth token.
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         serializer = UserSerializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def delete(self, request, *args, **kwargs):
+        user = request.user
+        Token.objects.filter(user=user).delete()
+        user.soft_delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
