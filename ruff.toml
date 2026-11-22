@@ -1,0 +1,26 @@
+# Ruff configuration for Shared Parking System
+
+target-version = "py311"
+line-length = 88
+
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "**/migrations/*",
+]
+
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+]
+ignore = [
+    "E501",  # line length violations (handled by formatting)
+]
+
+[lint.per-file-ignores]
+"**/migrations/*" = ["ALL"]
+"**/tests*.py" = ["F401"]
+"tests/*" = ["F401"]
