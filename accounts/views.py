@@ -1,6 +1,6 @@
 from rest_framework import generics, status
 from rest_framework.authtoken.models import Token
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -56,3 +56,15 @@ class LoginView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class CurrentUserView(APIView):
+    """
+    GET /api/auth/me/
+    Returns authenticated user's profile details.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
