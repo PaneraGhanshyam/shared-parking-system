@@ -108,6 +108,7 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
+    'EXCEPTION_HANDLER': 'config.exceptions.custom_exception_handler',
 }
 
 # Shared Parking Business Constants (Pricing Rule, Section 3.1 & 3.9)
