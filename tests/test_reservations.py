@@ -248,10 +248,301 @@ class ReservationAPITests(TestCase):
         self.assertEqual(response.data["status"], "CONFIRMED")
         self.assertIsNone(response.data["cancelled_at"])
 
-    def test_create_extension_slot_returns_501(self):
+    def test_create_reservation_requires_fields(self):
         response = self.auth_client.post("/api/reservations/", {})
-        self.assertEqual(response.status_code, status.HTTP_501_NOT_IMPLEMENTED)
 
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("errors", response.data)
+
+    def test_create_reservation_successfully(self):
+        start_time = timezone.now().replace(microsecond=0) + datetime.timedelta(days=5)
+        end_time = start_time + datetime.timedelta(hours=2)
+
+        response = self.auth_client.post(
+            "/api/reservations/",
+            {
+                "space": self.space.id,
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        reservation = Reservation.objects.get(id=response.data["id"])
+
+        self.assertEqual(reservation.user, self.user1)
+        self.assertEqual(reservation.space, self.space)
+        self.assertEqual(reservation.status, Reservation.Status.CONFIRMED)
+
+        expected_price = self.space.price_per_hour * Decimal("2")
+        self.assertEqual(reservation.total_price, expected_price)
+
+    def test_create_reservation_rejects_overlapping_booking(self):
+        start_time = timezone.now().replace(microsecond=0) + datetime.timedelta(days=5)
+        end_time = start_time + datetime.timedelta(hours=2)
+
+        # Another customer already booked this space.
+        create_reservation(
+            user=self.user2,
+            space=self.space,
+            start_time=start_time,
+            end_time=end_time,
+        )
+
+        # Current customer tries to book the same time slot.
+        response = self.auth_client.post(
+            "/api/reservations/",
+            {
+                "space": self.space.id,
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(
+            response.data["detail"],
+            "This time slot is already booked.",
+        )
+
+    def test_create_reservation_allows_adjacent_time_slot(self):
+        start_time = timezone.now().replace(microsecond=0) + datetime.timedelta(days=5)
+        existing_end = start_time + datetime.timedelta(hours=2)
+        new_end = existing_end + datetime.timedelta(hours=2)
+
+        create_reservation(
+            user=self.user2,
+            space=self.space,
+            start_time=start_time,
+            end_time=existing_end,
+        )
+
+        response = self.auth_client.post(
+            "/api/reservations/",
+            {
+                "space": self.space.id,
+                "start_time": existing_end.isoformat(),
+                "end_time": new_end.isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_create_reservation_rejects_own_space(self):
+        own_property = create_property(owner=self.user1)
+        own_space = create_space(parking_property=own_property)
+
+        start_time = timezone.now().replace(microsecond=0) + datetime.timedelta(days=5)
+        end_time = start_time + datetime.timedelta(hours=2)
+
+        response = self.auth_client.post(
+            "/api/reservations/",
+            {
+                "space": own_space.id,
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+    def test_create_reservation_allows_previously_cancelled_slot(self):
+        start_time = timezone.now().replace(microsecond=0) + datetime.timedelta(days=5)
+        end_time = start_time + datetime.timedelta(hours=2)
+
+        create_reservation(
+            user=self.user2,
+            space=self.space,
+            start_time=start_time,
+            end_time=end_time,
+            status=Reservation.Status.CANCELLED,
+        )
+
+        response = self.auth_client.post(
+            "/api/reservations/",
+            {
+                "space": self.space.id,
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+    def test_create_reservation_rejects_past_start_time(self):
+        start_time = timezone.now() - datetime.timedelta(days=1)
+        end_time = start_time + datetime.timedelta(hours=2)
+
+        response = self.auth_client.post(
+            "/api/reservations/",
+            {
+                "space": self.space.id,
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+    def test_create_reservation_rejects_end_before_start(self):
+        start_time = timezone.now() + datetime.timedelta(days=5)
+        end_time = start_time - datetime.timedelta(hours=2)
+
+        response = self.auth_client.post(
+            "/api/reservations/",
+            {
+                "space": self.space.id,
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_reservation_rejects_missing_space(self):
+        missing_space_id = self.space.id + 999
+
+        start_time = timezone.now() + datetime.timedelta(days=5)
+        end_time = start_time + datetime.timedelta(hours=2)
+
+        response = self.auth_client.post(
+            "/api/reservations/",
+            {
+                "space": missing_space_id,
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_create_reservation_rejects_inactive_space(self):
+        self.space.is_active = False
+        self.space.save(update_fields=["is_active"])
+
+        start_time = timezone.now() + datetime.timedelta(days=5)
+        end_time = start_time + datetime.timedelta(hours=2)
+
+        response = self.auth_client.post(
+            "/api/reservations/",
+            {
+                "space": self.space.id,
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_create_reservation_rejects_inactive_property(self):
+        parking_property = self.space.parking_property
+        parking_property.is_active = False
+        parking_property.save(update_fields=["is_active"])
+
+        start_time = timezone.now() + datetime.timedelta(days=5)
+        end_time = start_time + datetime.timedelta(hours=2)
+
+        response = self.auth_client.post(
+            "/api/reservations/",
+            {
+                "space": self.space.id,
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_create_reservation_rejects_inactive_property_owner(self):
+        owner = self.space.parking_property.owner
+        owner.is_active = False
+        owner.save(update_fields=["is_active"])
+
+        start_time = timezone.now() + datetime.timedelta(days=5)
+        end_time = start_time + datetime.timedelta(hours=2)
+
+        response = self.auth_client.post(
+            "/api/reservations/",
+            {
+                "space": self.space.id,
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_unauthenticated_user_cannot_create_reservation(self):
+        start_time = timezone.now() + datetime.timedelta(days=5)
+        end_time = start_time + datetime.timedelta(hours=2)
+
+        response = self.client.post(
+            "/api/reservations/",
+            {
+                "space": self.space.id,
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_create_reservation_calculates_partial_hour_price(self):
+        start_time = timezone.now().replace(microsecond=0) + datetime.timedelta(days=5)
+        end_time = start_time + datetime.timedelta(minutes=90)
+
+        response = self.auth_client.post(
+            "/api/reservations/",
+            {
+                "space": self.space.id,
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        reservation = Reservation.objects.get(id=response.data["id"])
+
+        expected_price = (
+            self.space.price_per_hour * Decimal("1.5")
+        ).quantize(Decimal("0.01"))
+
+        self.assertEqual(reservation.total_price, expected_price)
+    def test_create_reservation_ignores_client_supplied_price(self):
+        start_time = timezone.now().replace(microsecond=0) + datetime.timedelta(days=5)
+        end_time = start_time + datetime.timedelta(hours=2)
+
+        response = self.auth_client.post(
+            "/api/reservations/",
+            {
+                "space": self.space.id,
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+                "total_price": "1.00",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        reservation = Reservation.objects.get(id=response.data["id"])
+
+        expected_price = self.space.price_per_hour * Decimal("2")
+
+        self.assertEqual(reservation.total_price, expected_price)
+        self.assertNotEqual(reservation.total_price, Decimal("1.00"))
     def test_cancel_extension_slot_returns_501(self):
         response = self.auth_client.post(f"/api/reservations/{self.res1.id}/cancel/")
         self.assertEqual(response.status_code, status.HTTP_501_NOT_IMPLEMENTED)

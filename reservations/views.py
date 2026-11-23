@@ -5,7 +5,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .models import Reservation
-from .serializers import ReservationSerializer
+from .serializers import (
+    ReservationSerializer,
+    CreateReservationSerializer,
+)
+from .services import create_reservation
 
 
 class ReservationViewSet(viewsets.ReadOnlyModelViewSet):
@@ -23,13 +27,29 @@ class ReservationViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
     def create(self, request, *args, **kwargs):
-        """
-        Extension slot for M6: Reserve a space.
-        Temporary placeholder returning HTTP 501 NOT IMPLEMENTED.
-        """
+        input_serializer = CreateReservationSerializer(
+            data=request.data,
+            context={"request": request},
+        )
+        input_serializer.is_valid(raise_exception=True)
+
+        validated_data = input_serializer.validated_data
+
+        reservation = create_reservation(
+            user=request.user,
+            space=validated_data["space"],
+            start_time=validated_data["start_time"],
+            end_time=validated_data["end_time"],
+        )
+
+        output_serializer = ReservationSerializer(
+            reservation,
+            context=self.get_serializer_context(),
+        )
+
         return Response(
-            {"detail": "Reservation creation will be implemented in M6."},
-            status=status.HTTP_501_NOT_IMPLEMENTED,
+            output_serializer.data,
+            status=status.HTTP_201_CREATED,
         )
 
     @action(detail=True, methods=["post"], url_path="cancel")
