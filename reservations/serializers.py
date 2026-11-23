@@ -37,11 +37,8 @@ class ReservationSerializer(serializers.ModelSerializer):
             "created_at",
             "cancelled_at",
         ]
-
 class CreateReservationSerializer(serializers.Serializer):
-    space = serializers.PrimaryKeyRelatedField(
-        queryset=Space.objects.active()
-    )
+    space = serializers.IntegerField(min_value=1)
     start_time = serializers.DateTimeField()
     end_time = serializers.DateTimeField()
 
@@ -55,21 +52,10 @@ class CreateReservationSerializer(serializers.Serializer):
     def validate(self, attrs):
         start_time = attrs["start_time"]
         end_time = attrs["end_time"]
-        space = attrs["space"]
 
-        # End time must be after start time
         if end_time <= start_time:
             raise serializers.ValidationError(
                 "End time must be after start time."
             )
 
-        # Users cannot reserve their own spaces
-        request = self.context.get("request")
-
-        if request and space.parking_property.owner_id == request.user.id:
-            raise serializers.ValidationError(
-                "You cannot reserve your own space."
-            )
-
         return attrs
-        

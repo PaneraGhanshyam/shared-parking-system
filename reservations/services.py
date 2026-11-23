@@ -30,7 +30,7 @@ def create_reservation(user, space, start_time, end_time):
         locked_space = (
             Space.objects.active()
             .select_for_update(of=("self",))
-            .get(pk=space.pk)
+            .get(pk=space)
         )
     except Space.DoesNotExist:
         raise NotFound("Space not found or inactive.")
