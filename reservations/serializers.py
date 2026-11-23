@@ -1,9 +1,6 @@
-from rest_framework import serializers
+
 from django.utils import timezone
 from rest_framework import serializers
-
-from spaces.models import Space
-from spaces.serializers import SpaceSerializer
 
 from spaces.serializers import SpaceSerializer
 
@@ -37,6 +34,8 @@ class ReservationSerializer(serializers.ModelSerializer):
             "created_at",
             "cancelled_at",
         ]
+
+
 class CreateReservationSerializer(serializers.Serializer):
     space = serializers.IntegerField(min_value=1)
     start_time = serializers.DateTimeField()
