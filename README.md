@@ -39,8 +39,8 @@ The platform provides a peer-to-peer parking spot reservation service where ever
 | M5 | Availability search | `feature/available-spaces-search` | Done | [#17](https://github.com/PaneraGhanshyam/shared-parking-system/pull/17) |
 | M6 | Reserve a space | `feature/reserve-space` | Done | [#16](https://github.com/PaneraGhanshyam/shared-parking-system/pull/16) |
 | M7 | Cancel reservation | `feature/cancel-reservation` | Done | [#18](https://github.com/PaneraGhanshyam/shared-parking-system/pull/18) |
-| M8 | Testing + CI | `ci/test-setup` | Done | [PRs](https://github.com/PaneraGhanshyam/shared-parking-system/pulls) |
-| M8 | API docs + release | `docs/api-and-seed` | In Review | — |
+| M8 | Testing + CI | `ci/test-setup` | Done | [#12](https://github.com/PaneraGhanshyam/shared-parking-system/pull/12) |
+| M8 | API docs + release | `docs/api-and-seed` | Done | [#19](https://github.com/PaneraGhanshyam/shared-parking-system/pull/19) |
 
 ---
 
