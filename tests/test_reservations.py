@@ -248,9 +248,11 @@ class ReservationAPITests(TestCase):
         self.assertEqual(response.data["status"], "CONFIRMED")
         self.assertIsNone(response.data["cancelled_at"])
 
-    def test_create_extension_slot_returns_501(self):
+    def test_create_reservation_requires_fields(self):
         response = self.auth_client.post("/api/reservations/", {})
-        self.assertEqual(response.status_code, status.HTTP_501_NOT_IMPLEMENTED)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("errors", response.data)
 
     def test_cancel_extension_slot_returns_501(self):
         response = self.auth_client.post(f"/api/reservations/{self.res1.id}/cancel/")
