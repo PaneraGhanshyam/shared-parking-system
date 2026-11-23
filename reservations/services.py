@@ -78,5 +78,37 @@ def create_reservation(user, space, start_time, end_time):
     return reservation
 
 
+@transaction.atomic
 def cancel_reservation(user, reservation_id):
-    pass
+    # 1. Find the reservation and lock it.
+    # Filter by user to avoid revealing another user's reservation.
+    try:
+        reservation = (
+            Reservation.objects
+            .select_for_update()
+            .get(pk=reservation_id, user=user)
+        )
+    except Reservation.DoesNotExist:
+        raise NotFound("Reservation not found.")
+
+    # 2. Only confirmed reservations can be cancelled.
+    if reservation.status != Reservation.Status.CONFIRMED:
+        raise ValidationError("Reservation is already cancelled.")
+
+    # 3. Cancellation is allowed only before the reservation starts.
+    now = timezone.now()
+
+    if now >= reservation.start_time:
+        raise ValidationError(
+            "Cannot cancel a reservation that has already started."
+        )
+
+    # 4. Update the reservation to release the slot.
+    reservation.status = Reservation.Status.CANCELLED
+    reservation.cancelled_at = now
+
+    reservation.save(
+        update_fields=["status", "cancelled_at"]
+    )
+
+    return reservation

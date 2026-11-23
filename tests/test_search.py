@@ -99,6 +99,41 @@ class AvailabilitySearchTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["count"], 0)
 
+    def test_cancelling_reservation_makes_space_available(self):
+        reservation = Reservation.objects.create(
+            user=self.user,
+            space=self.space,
+            start_time=self.start,
+            end_time=self.end,
+            total_price=50.00,
+            status=Reservation.Status.CONFIRMED,
+        )
+
+        search_url = (
+            f"/api/spaces/available/?start={self.format_dt(self.start)}"
+            f"&end={self.format_dt(self.end)}"
+        )
+
+        response = self.client.get(search_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 0)
+
+        cancel_response = self.client.post(
+            f"/api/reservations/{reservation.id}/cancel/"
+        )
+
+        self.assertEqual(cancel_response.status_code, 200)
+        self.assertEqual(
+            cancel_response.data["status"],
+            Reservation.Status.CANCELLED,
+        )
+
+        search_response = self.client.get(search_url)
+
+        self.assertEqual(search_response.status_code, 200)
+        self.assertEqual(search_response.data["count"], 1)
+
     def test_filter_by_city_case_insensitive(self):
         response = self.client.get(
             f"/api/spaces/available/?start={self.format_dt(self.start)}&end={self.format_dt(self.end)}&city=ahmedabad"

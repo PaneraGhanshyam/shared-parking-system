@@ -9,7 +9,7 @@ from .serializers import (
     ReservationSerializer,
     CreateReservationSerializer,
 )
-from .services import create_reservation
+from .services import create_reservation, cancel_reservation
 
 
 class ReservationViewSet(viewsets.ReadOnlyModelViewSet):
@@ -54,11 +54,14 @@ class ReservationViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="cancel")
     def cancel(self, request, pk=None):
-        """
-        Extension slot for M7: Cancel reservation.
-        Temporary placeholder returning HTTP 501 NOT IMPLEMENTED.
-        """
+        reservation = cancel_reservation(
+            user=request.user,
+            reservation_id=pk,
+        )
+
+        serializer = self.get_serializer(reservation)
+
         return Response(
-            {"detail": "Reservation cancellation will be implemented in M7."},
-            status=status.HTTP_501_NOT_IMPLEMENTED,
+            serializer.data,
+            status=status.HTTP_200_OK,
         )

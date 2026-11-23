@@ -18,6 +18,9 @@ from tests.helpers import (
     create_user,
 )
 
+from rest_framework.exceptions import NotFound, ValidationError
+from reservations.services import cancel_reservation
+
 User = get_user_model()
 
 
@@ -168,6 +171,65 @@ class ReservationQuerySetTests(TestCase):
             str(self.existing_res),
             f"Reservation {self.existing_res.id} - {self.space} (CONFIRMED)",
         )
+
+
+class ReservationCancellationServiceTests(TestCase):
+    def setUp(self):
+        self.user = create_user(username="cancel_user")
+        self.other_user = create_user(username="other_user")
+        self.space = create_space()
+
+        self.reservation = create_reservation(
+            user=self.user,
+            space=self.space,
+        )
+
+    def test_confirmed_reservation_can_be_cancelled(self):
+        reservation = cancel_reservation(
+            self.user,
+            self.reservation.id,
+        )
+
+        self.assertEqual(
+            reservation.status,
+            Reservation.Status.CANCELLED,
+        )
+        self.assertIsNotNone(reservation.cancelled_at)
+
+    def test_already_cancelled_reservation_raises_validation_error(self):
+        self.reservation.status = Reservation.Status.CANCELLED
+        self.reservation.save(update_fields=["status"])
+
+        with self.assertRaises(ValidationError) as context:
+            cancel_reservation(self.user, self.reservation.id)
+
+        self.assertEqual(
+            str(context.exception.detail[0]),
+            "Reservation is already cancelled.",
+        )
+
+    def test_reservation_that_has_started_cannot_be_cancelled(self):
+        self.reservation.start_time = (
+            timezone.now() - datetime.timedelta(hours=1)
+        )
+        self.reservation.save(update_fields=["start_time"])
+
+        with self.assertRaises(ValidationError) as context:
+            cancel_reservation(self.user, self.reservation.id)
+
+        self.assertEqual(
+            str(context.exception.detail[0]),
+            "Cannot cancel a reservation that has already started.",
+        )
+
+    def test_another_users_reservation_returns_not_found(self):
+        other_reservation = create_reservation(
+            user=self.other_user,
+            space=self.space,
+        )
+
+        with self.assertRaises(NotFound):
+            cancel_reservation(self.user, other_reservation.id)
 
 
 class ReservationAPITests(TestCase):
@@ -543,9 +605,57 @@ class ReservationAPITests(TestCase):
 
         self.assertEqual(reservation.total_price, expected_price)
         self.assertNotEqual(reservation.total_price, Decimal("1.00"))
-    def test_cancel_extension_slot_returns_501(self):
-        response = self.auth_client.post(f"/api/reservations/{self.res1.id}/cancel/")
-        self.assertEqual(response.status_code, status.HTTP_501_NOT_IMPLEMENTED)
+
+    def test_user_can_cancel_own_confirmed_reservation(self):
+        response = self.auth_client.post(
+            f"/api/reservations/{self.res1.id}/cancel/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "CANCELLED")
+        self.assertIsNotNone(response.data["cancelled_at"])
+
+        self.res1.refresh_from_db()
+        self.assertEqual(self.res1.status, Reservation.Status.CANCELLED)
+        self.assertIsNotNone(self.res1.cancelled_at)
+
+
+    def test_user_cannot_cancel_already_cancelled_reservation(self):
+        self.res1.status = Reservation.Status.CANCELLED
+        self.res1.save(update_fields=["status"])
+
+        response = self.auth_client.post(
+            f"/api/reservations/{self.res1.id}/cancel/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+    def test_user_cannot_cancel_reservation_that_has_started(self):
+        self.res1.start_time = timezone.now() - datetime.timedelta(hours=1)
+        self.res1.save(update_fields=["start_time"])
+
+        response = self.auth_client.post(
+            f"/api/reservations/{self.res1.id}/cancel/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+    def test_user_cannot_cancel_another_users_reservation(self):
+        response = self.auth_client.post(
+            f"/api/reservations/{self.res_other.id}/cancel/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+    def test_unauthenticated_user_cannot_cancel_reservation(self):
+        response = self.client.post(
+            f"/api/reservations/{self.res1.id}/cancel/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_authenticated_get_list_deterministic_ordering(self):
         res3 = create_reservation(user=self.user1, space=self.space)
