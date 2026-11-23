@@ -254,59 +254,59 @@ class ReservationAPITests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("errors", response.data)
 
-        def test_create_reservation_successfully(self):
-            start_time = timezone.now().replace(microsecond=0) + datetime.timedelta(days=5)
-            end_time = start_time + datetime.timedelta(hours=2)
+    def test_create_reservation_successfully(self):
+        start_time = timezone.now().replace(microsecond=0) + datetime.timedelta(days=5)
+        end_time = start_time + datetime.timedelta(hours=2)
 
-            response = self.auth_client.post(
-                "/api/reservations/",
-                {
-                    "space": self.space.id,
-                    "start_time": start_time.isoformat(),
-                    "end_time": end_time.isoformat(),
-                },
-                format="json",
-            )
+        response = self.auth_client.post(
+            "/api/reservations/",
+            {
+                "space": self.space.id,
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+            },
+            format="json",
+        )
 
-            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-            reservation = Reservation.objects.get(id=response.data["id"])
+        reservation = Reservation.objects.get(id=response.data["id"])
 
-            self.assertEqual(reservation.user, self.user1)
-            self.assertEqual(reservation.space, self.space)
-            self.assertEqual(reservation.status, Reservation.Status.CONFIRMED)
+        self.assertEqual(reservation.user, self.user1)
+        self.assertEqual(reservation.space, self.space)
+        self.assertEqual(reservation.status, Reservation.Status.CONFIRMED)
 
-            expected_price = self.space.price_per_hour * Decimal("2")
-            self.assertEqual(reservation.total_price, expected_price)
+        expected_price = self.space.price_per_hour * Decimal("2")
+        self.assertEqual(reservation.total_price, expected_price)
 
-        def test_create_reservation_rejects_overlapping_booking(self):
-            start_time = timezone.now().replace(microsecond=0) + datetime.timedelta(days=5)
-            end_time = start_time + datetime.timedelta(hours=2)
+    def test_create_reservation_rejects_overlapping_booking(self):
+        start_time = timezone.now().replace(microsecond=0) + datetime.timedelta(days=5)
+        end_time = start_time + datetime.timedelta(hours=2)
 
-            # Another customer already booked this space.
-            create_reservation(
-                user=self.user2,
-                space=self.space,
-                start_time=start_time,
-                end_time=end_time,
-            )
+        # Another customer already booked this space.
+        create_reservation(
+            user=self.user2,
+            space=self.space,
+            start_time=start_time,
+            end_time=end_time,
+        )
 
-            # Current customer tries to book the same time slot.
-            response = self.auth_client.post(
-                "/api/reservations/",
-                {
-                    "space": self.space.id,
-                    "start_time": start_time.isoformat(),
-                    "end_time": end_time.isoformat(),
-                },
-                format="json",
-            )
+        # Current customer tries to book the same time slot.
+        response = self.auth_client.post(
+            "/api/reservations/",
+            {
+                "space": self.space.id,
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+            },
+            format="json",
+        )
 
-            self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-            self.assertEqual(
-                response.data["detail"],
-                "This time slot is already booked.",
-            )
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(
+            response.data["detail"],
+            "This time slot is already booked.",
+        )
 
     def test_create_reservation_allows_adjacent_time_slot(self):
         start_time = timezone.now().replace(microsecond=0) + datetime.timedelta(days=5)
