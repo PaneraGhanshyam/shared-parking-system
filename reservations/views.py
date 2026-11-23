@@ -1,3 +1,4 @@
+
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -12,9 +13,13 @@ class ReservationViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Reservation.objects.filter(user=self.request.user).select_related(
-            "user",
-            "space__parking_property",
+        return (
+            Reservation.objects.filter(user=self.request.user)
+            .select_related(
+                "user",
+                "space__parking_property",
+            )
+            .order_by("-created_at", "-id")
         )
 
     def create(self, request, *args, **kwargs):

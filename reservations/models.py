@@ -46,5 +46,27 @@ class Reservation(models.Model):
 
     objects = ReservationQuerySet.as_manager()
 
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=["space", "start_time", "end_time"],
+                name="reservation_space_time_idx",
+            ),
+            models.Index(
+                fields=["user", "created_at"],
+                name="reservation_user_created_idx",
+            ),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(start_time__lt=models.F("end_time")),
+                name="reservation_start_before_end",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(total_price__gte=0),
+                name="reservation_total_price_non_negative",
+            ),
+        ]
+
     def __str__(self):
         return f"Reservation {self.id} - {self.space} ({self.status})"

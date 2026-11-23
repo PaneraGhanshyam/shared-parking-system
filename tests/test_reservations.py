@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError
 from django.test import RequestFactory, TestCase
 from django.utils import timezone
 from rest_framework import status
@@ -254,6 +255,90 @@ class ReservationAPITests(TestCase):
     def test_cancel_extension_slot_returns_501(self):
         response = self.auth_client.post(f"/api/reservations/{self.res1.id}/cancel/")
         self.assertEqual(response.status_code, status.HTTP_501_NOT_IMPLEMENTED)
+
+    def test_authenticated_get_list_deterministic_ordering(self):
+        res3 = create_reservation(user=self.user1, space=self.space)
+        response = self.auth_client.get("/api/reservations/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        results = (
+            response.data["results"]
+            if "results" in response.data
+            else response.data
+        )
+        returned_ids = [item["id"] for item in results]
+        expected_ids = list(
+            Reservation.objects.filter(user=self.user1)
+            .order_by("-created_at", "-id")
+            .values_list("id", flat=True)
+        )
+        self.assertEqual(returned_ids, expected_ids)
+        self.assertEqual(len(returned_ids), 3)
+        self.assertEqual(returned_ids[0], res3.id)
+
+
+class ReservationConstraintTests(TestCase):
+    def setUp(self):
+        self.user = create_user()
+        self.space = create_space()
+        self.now = timezone.now().replace(microsecond=0) + datetime.timedelta(days=1)
+
+    def test_reservation_cannot_be_saved_when_start_time_equals_end_time(self):
+        with self.assertRaises(IntegrityError):
+            Reservation.objects.create(
+                user=self.user,
+                space=self.space,
+                start_time=self.now,
+                end_time=self.now,
+                total_price=Decimal("50.00"),
+                status=Reservation.Status.CONFIRMED,
+            )
+
+    def test_reservation_cannot_be_saved_when_start_time_after_end_time(self):
+        with self.assertRaises(IntegrityError):
+            Reservation.objects.create(
+                user=self.user,
+                space=self.space,
+                start_time=self.now + datetime.timedelta(hours=2),
+                end_time=self.now,
+                total_price=Decimal("50.00"),
+                status=Reservation.Status.CONFIRMED,
+            )
+
+    def test_reservation_cannot_be_saved_with_negative_total_price(self):
+        with self.assertRaises(IntegrityError):
+            Reservation.objects.create(
+                user=self.user,
+                space=self.space,
+                start_time=self.now,
+                end_time=self.now + datetime.timedelta(hours=2),
+                total_price=Decimal("-1.00"),
+                status=Reservation.Status.CONFIRMED,
+            )
+
+    def test_valid_reservation_with_zero_price_can_be_saved(self):
+        res = Reservation.objects.create(
+            user=self.user,
+            space=self.space,
+            start_time=self.now,
+            end_time=self.now + datetime.timedelta(hours=2),
+            total_price=Decimal("0.00"),
+            status=Reservation.Status.CONFIRMED,
+        )
+        self.assertIsNotNone(res.id)
+        self.assertEqual(res.total_price, Decimal("0.00"))
+
+    def test_valid_reservation_with_positive_price_can_be_saved(self):
+        res = Reservation.objects.create(
+            user=self.user,
+            space=self.space,
+            start_time=self.now,
+            end_time=self.now + datetime.timedelta(hours=2),
+            total_price=Decimal("75.50"),
+            status=Reservation.Status.CONFIRMED,
+        )
+        self.assertIsNotNone(res.id)
+        self.assertEqual(res.total_price, Decimal("75.50"))
 
 
 class ReservationAdminTests(TestCase):
