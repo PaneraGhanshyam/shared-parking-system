@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     # Third-party apps
     'rest_framework',
     'rest_framework.authtoken',
+    'drf_spectacular',
     # Project apps
     'accounts',
     'spaces',
@@ -113,6 +114,30 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
     'EXCEPTION_HANDLER': 'config.exceptions.custom_exception_handler',
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+# Spectacular Settings (API Documentation)
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Shared Parking System API',
+    'DESCRIPTION': (
+        'A collaborative shared-parking backend API built with Python, Django, and DRF.\n\n'
+        '### Authentication Instructions for Swagger UI:\n'
+        '1. Run `POST /api/auth/login/` (or `/api/auth/register/`) to get your auth token.\n'
+        '2. Click the green **Authorize** button at the top right.\n'
+        '3. Under **tokenAuth (apiKey)**, type: `Token <your_token>` (e.g. `Token 9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b`).\n'
+        '   *Note: You **must** include the word `Token ` followed by a space before your token key!*\n'
+        '4. Click **Authorize** and then **Close**.'
+    ),
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'SERVE_PUBLIC': True,
+    'SERVE_PERMISSIONS': ['rest_framework.permissions.AllowAny'],
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SWAGGER_UI_SETTINGS': {
+        'persistAuthorization': True,
+        'displayRequestDuration': True,
+    },
 }
 
 # Shared Parking Business Constants (Pricing Rule, Section 3.1 & 3.9)
